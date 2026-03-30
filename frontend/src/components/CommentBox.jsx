@@ -3,41 +3,47 @@ import axios from 'axios';
 import { auth } from '../firebase';
 import { useDebounce } from '../hooks/useDebounce';
 import ResultBar from './ResultBar';
-import { Send, AlertTriangle } from 'lucide-react';
+import { Send, AlertTriangle, Volume2, VolumeX } from 'lucide-react';
 
-// --- ADDED CLOUD API URL ---
 const API_BASE_URL = "https://thaveedhu-safespace-backend.hf.space";
+const sirenUrl = "https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg";
 
 export default function CommentBox({ isLocked, setIsLocked, strikes, setStrikes, userEmail }) {
   const [text, setText] = useState('');
   const [analysis, setAnalysis] = useState(null);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(false); // Track if user unlocked audio
   const debouncedText = useDebounce(text, 600);
   
-  // FIXED: Using a standard .mp3 from a reliable source
-  const sirenUrl = "https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg";
-  const sirenRef = useRef(new Audio(sirenUrl));
+  // Persistent Audio Reference
+  const audioRef = useRef(new Audio(sirenUrl));
+
+  // Function to unlock audio (Required by Edge/Chrome)
+  const enableAudio = () => {
+    const audio = audioRef.current;
+    audio.play().then(() => {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.volume = 1.0;
+      setIsAudioEnabled(true);
+      console.log("🔊 Audio Context Unlocked");
+    }).catch(err => console.log("Click again to enable audio"));
+  };
 
   const playSiren = () => {
-  const audio = sirenRef.current;
-  audio.currentTime = 0; // Reset to start
-  audio.volume = 1.0;
-
-  audio.play()
-    .then(() => {
-      console.log("🚨 Siren sounding!");
-      // Stop exactly after 5 seconds
-      setTimeout(() => {
-        audio.pause();
-      }, 5000);
-    })
-    .catch(error => {
-      console.error("Autoplay blocked. User must click the page first.", error);
-    });
-};
+    if (!isAudioEnabled) return;
+    const audio = audioRef.current;
+    audio.currentTime = 0;
+    audio.play().catch(e => console.log("Playback failed"));
+    
+    // Stop after 5 seconds
+    setTimeout(() => {
+      audio.pause();
+      audio.currentTime = 0;
+    }, 5000);
+  };
 
   useEffect(() => {
     if (debouncedText.trim().length > 2 && !isLocked) {
-      // --- UPDATED TO CLOUD URL ---
       axios.post(`${API_BASE_URL}/analyze`, { 
         text: debouncedText.trim(), 
         email: userEmail 
@@ -45,7 +51,7 @@ export default function CommentBox({ isLocked, setIsLocked, strikes, setStrikes,
       .then(res => {
         setAnalysis(res.data);
         if (res.data.is_hateful) {
-          playSiren();
+          playSiren(); // Triggers the sound
           setStrikes(res.data.remaining_strikes);
           setIsLocked(true);
           
@@ -60,13 +66,12 @@ export default function CommentBox({ isLocked, setIsLocked, strikes, setStrikes,
           }
         }
       })
-      .catch(err => console.log("Backend offline? Check Hugging Face Space status."));
+      .catch(err => console.log("Backend offline?"));
     }
   }, [debouncedText]);
 
   const handlePost = async () => {
     if (!text.trim()) return;
-    // --- UPDATED TO CLOUD URL ---
     await axios.post(`${API_BASE_URL}/submit`, { text: text.trim() });
     setText('');
     setAnalysis(null);
@@ -74,26 +79,24 @@ export default function CommentBox({ isLocked, setIsLocked, strikes, setStrikes,
 
   return (
     <div 
-  className={`glass p-10 border-2 rounded-[2.5rem] transition-all duration-700 shadow-2xl ${
-    isLocked ? 'border-red-600 bg-red-900/20' : 'border-slate-800 bg-black/20'
-  }`}
-  onClick={() => {
-    // THIS UNLOCKS AUDIO CONTEXT FOR THE SESSION
-    const audio = sirenRef.current;
-    if (audio.paused) {
-      audio.volume = 0; // Silent
-      audio.play().then(() => {
-        audio.pause();
-        audio.volume = 1.0; // Reset volume for actual alerts
-        console.log("Audio Context Unlocked");
-      }).catch(() => {});
-    }
-  }}
->
+      className={`glass p-10 border-2 rounded-[2.5rem] transition-all duration-700 shadow-2xl ${
+        isLocked ? 'border-red-600 bg-red-900/20' : 'border-slate-800 bg-black/20'
+      }`}
+    >
       <div className="flex justify-between items-center mb-8">
-        <h3 className={`text-3xl font-black italic tracking-tighter uppercase transition-colors ${isLocked ? 'text-red-500' : 'text-white'}`}>
-          AI MODERATOR
-        </h3>
+        <div className="flex items-center gap-4">
+          <h3 className={`text-3xl font-black italic tracking-tighter uppercase transition-colors ${isLocked ? 'text-red-500' : 'text-white'}`}>
+            AI MODERATOR
+          </h3>
+          {/* AUDIO UNLOCK BUTTON - Visual indicator for the user */}
+          <button 
+            onClick={enableAudio}
+            className={`p-2 rounded-xl border transition-all ${isAudioEnabled ? 'bg-emerald-500/20 border-emerald-500 text-emerald-500' : 'bg-amber-500/20 border-amber-500 text-amber-500 animate-pulse'}`}
+          >
+            {isAudioEnabled ? <Volume2 size={20}/> : <VolumeX size={20}/>}
+          </button>
+        </div>
+
         {isLocked && (
           <div className="flex items-center gap-3 text-red-500 font-black animate-pulse bg-red-500/10 px-6 py-2 rounded-full border-2 border-red-500/50">
             <AlertTriangle size={24}/> SIREN ACTIVE
@@ -103,17 +106,19 @@ export default function CommentBox({ isLocked, setIsLocked, strikes, setStrikes,
 
       <textarea 
         disabled={isLocked}
+        onClick={!isAudioEnabled ? enableAudio : null} // Unlocks on first click of textarea too
         className={`w-full h-56 p-8 bg-black/40 border-2 rounded-[2rem] text-2xl outline-none transition-all duration-500 text-white font-medium ${
           isLocked ? 'border-red-600' : 'border-slate-900 focus:border-indigo-500'
         }`}
-        placeholder={isLocked ? "LOCKDOWN ACTIVE..." : "Type here to test..."}
+        placeholder={isLocked ? "LOCKDOWN ACTIVE..." : "Click here and type to test..."}
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
       
       <div className="mt-8">
         <ResultBar analysis={analysis} />
-        <div className="flex justify-end mt-8">
+        <div className="flex justify-end mt-8 gap-4 items-center">
+            {!isAudioEnabled && <span className="text-amber-500 text-xs font-bold animate-bounce">Click box to enable sound 🔊</span>}
           <button 
             onClick={handlePost} 
             disabled={isLocked || !text.trim()} 
