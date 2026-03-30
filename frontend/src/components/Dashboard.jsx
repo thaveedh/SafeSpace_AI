@@ -4,6 +4,9 @@ import { LogOut, History, ShieldAlert, Heart, CheckCircle2, BrainCircuit } from 
 import axios from 'axios';
 import CommentBox from './CommentBox';
 
+// REPLACE THIS WITH YOUR ACTUAL HUGGING FACE DIRECT URL
+const API_BASE_URL = "https://thaveedhu-safespace-backend.hf.space";
+
 export default function Dashboard({ user }) {
   const [isLocked, setIsLocked] = useState(false);
   const [history, setHistory] = useState([]);
@@ -12,17 +15,19 @@ export default function Dashboard({ user }) {
 
   const fetchData = async () => {
     try {
-      const histRes = await axios.get('http://127.0.0.1:8000/history');
+      // Updated to use Cloud URL
+      const histRes = await axios.get(`${API_BASE_URL}/history`);
       setHistory(histRes.data.reverse());
       
-      const blockRes = await axios.get('http://127.0.0.1:8000/blocked');
+      const blockRes = await axios.get(`${API_BASE_URL}/blocked`);
       setBlocked(blockRes.data);
 
-      const statusRes = await axios.get(`http://127.0.0.1:8000/user-status/${user.email}`);
-      // IF THE SIREN PLAYS, THIS NUMBER WILL REDUCE
+      const statusRes = await axios.get(`${API_BASE_URL}/user-status/${user.email}`);
       setStrikes(statusRes.data.strikes);
-    } catch (e) { console.log("Refresh error"); }
-};
+    } catch (e) { 
+      console.log("Backend connection error. It might be sleeping."); 
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -32,12 +37,14 @@ export default function Dashboard({ user }) {
 
   const handleModeration = async (text, action) => {
     const endpoint = action === 'HATE' ? 'learn' : 'ignore';
-    await axios.post(`http://127.0.0.1:8000/${endpoint}`, { text });
+    // Updated to use Cloud URL
+    await axios.post(`${API_BASE_URL}/${endpoint}`, { text });
     fetchData();
   };
 
   const undoBlock = async (text) => {
-    await axios.post(`http://127.0.0.1:8000/unblock`, { text });
+    // Updated to use Cloud URL
+    await axios.post(`${API_BASE_URL}/unblock`, { text });
     fetchData();
   };
 

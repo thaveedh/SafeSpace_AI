@@ -5,6 +5,9 @@ import { useDebounce } from '../hooks/useDebounce';
 import ResultBar from './ResultBar';
 import { Send, AlertTriangle } from 'lucide-react';
 
+// --- ADDED CLOUD API URL ---
+const API_BASE_URL = "https://thaveedhu-safespace-backend.hf.space";
+
 export default function CommentBox({ isLocked, setIsLocked, strikes, setStrikes, userEmail }) {
   const [text, setText] = useState('');
   const [analysis, setAnalysis] = useState(null);
@@ -38,7 +41,8 @@ export default function CommentBox({ isLocked, setIsLocked, strikes, setStrikes,
 
   useEffect(() => {
     if (debouncedText.trim().length > 2 && !isLocked) {
-      axios.post('http://127.0.0.1:8000/analyze', { 
+      // --- UPDATED TO CLOUD URL ---
+      axios.post(`${API_BASE_URL}/analyze`, { 
         text: debouncedText.trim(), 
         email: userEmail 
       })
@@ -60,13 +64,14 @@ export default function CommentBox({ isLocked, setIsLocked, strikes, setStrikes,
           }
         }
       })
-      .catch(err => console.log("Backend offline?"));
+      .catch(err => console.log("Backend offline? Check Hugging Face Space status."));
     }
   }, [debouncedText]);
 
   const handlePost = async () => {
     if (!text.trim()) return;
-    await axios.post('http://127.0.0.1:8000/submit', { text: text.trim() });
+    // --- UPDATED TO CLOUD URL ---
+    await axios.post(`${API_BASE_URL}/submit`, { text: text.trim() });
     setText('');
     setAnalysis(null);
   };
